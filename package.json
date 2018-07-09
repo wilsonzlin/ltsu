@@ -1,0 +1,31 @@
+{
+  "dependencies": {
+    "minimist": "^1.2.0",
+    "request": "^2.81.0"
+  },
+  "name": "ltsu",
+  "version": "0.0.1",
+  "description": "Long Term Storage Uploader",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wilsonzlin/ltsu.git"
+  },
+  "keywords": [
+    "glacier",
+    "b2",
+    "upload",
+    "uploader",
+    "aws"
+  ],
+  "author": {
+    "email": "contact@wilsonl.in",
+    "name": "Wilson Lin",
+    "url": "https://wilsonl.in/"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/wilsonzlin/ltsu/issues"
+  },
+  "homepage": "https://github.com/wilsonzlin/ltsu#readme"
+}
