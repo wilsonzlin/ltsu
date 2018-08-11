@@ -1,10 +1,10 @@
-"use strict";
-
-const fs = require(`fs`);
-const crypto = require(`crypto`);
-const request = require(`request`);
-const Signature = require(`./signature.js`);
-const minimist = require(`minimist`);
+import fs from "fs";
+import crypto from "crypto";
+import {createAuthHeader} from "../util/aws/signature";
+import minimist from "minimist";
+import http from "../util/http";
+import nullableReadBinaryFile from "../util/nullableReadBinaryFile";
+import getISOTime from "../util/getISOTime";
 
 const args = minimist(process.argv.slice(2));
 
@@ -35,82 +35,8 @@ let currentUploads = 0;
 let partsNeeded;
 let fileSize;
 
-class HTTPBadStatusError extends Error {
-  constructor (status, body) {
-    super(`Bad HTTP status of ${status}: ${body}`);
-  }
-}
 
-function leftPad (str, width, char) {
-  str = "" + str;
-  return (char || "0").repeat(Math.max(0, width - str.length)) + str;
-}
-
-function getISOTime () {
-  let d = new Date();
-  return `${leftPad(d.getUTCFullYear(), 4)}${leftPad(d.getUTCMonth() +
-                                                     1, 2)}${leftPad(d.getUTCDate(), 2)}T${leftPad(d.getUTCHours(), 2)}${leftPad(d.getUTCMinutes(), 2)}${leftPad(d.getUTCSeconds(), 2)}Z`;
-}
-
-function lstat (file) {
-  return new Promise((resolve, reject) => {
-    fs.lstat(file, (err, stats) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(stats);
-      }
-    });
-  });
-}
-
-function writeFile (file, data) {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(file, data, err => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
-  });
-}
-
-function nullableReadBinaryFile (file) {
-  return new Promise((resolve, reject) => {
-    fs.readFile(file, (err, buffer) => {
-      if (err && err.code === "ENOENT") {
-        resolve(null);
-      } else if (err) {
-        reject(err);
-      } else {
-        resolve(buffer);
-      }
-    });
-  });
-}
-
-function http ({method, url, headers, body}) {
-  return new Promise((resolve, reject) => {
-    request({
-      url: url,
-      method: method,
-      headers: headers,
-      body: body,
-      timeout: 120000, // 2 minutes
-    }, (err, res, body) => {
-      if (err) {
-        reject(err);
-      } else if (res.statusCode < 200 || res.statusCode > 299) {
-        reject(new HTTPBadStatusError(res.statusCode, res.body));
-      } else {
-        resolve(res);
-      }
-    });
-  });
-}
-
-function awsGlacierHttp ({method, subpath, headers, body, contentHash}) {
+function awsGlacierHttp({ method, subpath, headers, body, contentHash }) {
   let host = `glacier.${AWS_REGION}.amazonaws.com`;
   let path = `/-/vaults/${VAULT_NAME}${subpath}`;
 
@@ -122,18 +48,19 @@ function awsGlacierHttp ({method, subpath, headers, body, contentHash}) {
     "x-amz-content-sha256": contentHash || crypto.createHash(`sha256`).update(body || "").digest("hex"),
   }, headers);
 
-  let authHeader = new Signature({
+  let authHeader = createAuthHeader({
     isoDateTime: datetime,
     method: method,
     host: host,
     path: path,
+    args: null,
     headers: headers,
     body: body,
     service: `glacier`,
     region: AWS_REGION,
     accessKeyId: ACCESS_ID,
     secretAccessKey: ACCESS_SECRET,
-  }).toAuthHeader();
+  });
 
   headers.Authorization = authHeader;
 
@@ -145,7 +72,7 @@ function awsGlacierHttp ({method, subpath, headers, body, contentHash}) {
   });
 }
 
-function initMultipartUpload () {
+function initMultipartUpload() {
   return new Promise((resolve, reject) => {
     let pathToUploadId = `${WORK_DIR}/mpupload.id`;
 
@@ -168,8 +95,8 @@ function initMultipartUpload () {
               uploadId = res.headers["x-amz-multipart-upload-id"];
               return writeFile(pathToUploadId, uploadId);
             }).then(() => {
-            resolve(uploadId);
-          })
+              resolve(uploadId);
+            })
             .catch(reject);
         }
       })
@@ -177,7 +104,7 @@ function initMultipartUpload () {
   });
 }
 
-function calculateTreeAndContentHashesOfFile (path, start, end) {
+function calculateTreeAndContentHashesOfFile(path, start, end) {
   return new Promise((resolve, reject) => {
     let hashes = [];
     let contentHash = crypto.createHash("sha256");
@@ -253,7 +180,7 @@ function calculateTreeAndContentHashesOfFile (path, start, end) {
   });
 }
 
-function _uploadPart ({uploadId, partNo, resolve, reject}) {
+function _uploadPart({ uploadId, partNo, resolve, reject }) {
   let checksum;
   let start = partNo * PART_SIZE;
   let end = Math.min(fileSize - 1, (partNo + 1) * PART_SIZE - 1);
@@ -294,11 +221,11 @@ function _uploadPart ({uploadId, partNo, resolve, reject}) {
     });
 }
 
-function uploadPart (uploadId, partNo) {
+function uploadPart(uploadId, partNo) {
   return new Promise((resolve, reject) => {
     if (currentUploads < CONCURRENT_UPLOADS) {
       currentUploads++;
-      _uploadPart({uploadId, partNo, resolve, reject});
+      _uploadPart({ uploadId, partNo, resolve, reject });
     } else {
       uploadQueue.push({
         uploadId, partNo, resolve, reject,
@@ -307,7 +234,7 @@ function uploadPart (uploadId, partNo) {
   });
 }
 
-function completeMultipartUpload (checksum) {
+function completeMultipartUpload(checksum) {
   return new Promise((resolve, reject) => {
     console.log(`Completing multipart upload...`);
     awsGlacierHttp({
@@ -349,13 +276,13 @@ initMultipartUpload()
       let attempts = {};
       let uploadedCount = 0;
 
-      function isComplete () {
+      function isComplete() {
         if (uploadedCount === partsNeeded) {
           resolve(treeHashes);
         }
       }
 
-      function upload (partNo) {
+      function upload(partNo) {
         attempts[partNo] = (attempts[partNo] || 0) + 1;
         uploadPart(uploadId, partNo)
           .then(checksum => {
