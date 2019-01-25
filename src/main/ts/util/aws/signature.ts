@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { ISignature } from "../../../../../dist/util/aws/signature";
 
 export type HTTPRequestMethod = "GET" | "POST";
 export type HTTPRequestQueryArguments = { [query: string]: string };

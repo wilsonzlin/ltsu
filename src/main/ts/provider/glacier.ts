@@ -48,7 +48,7 @@ function awsGlacierHttp({ method, subpath, headers, body, contentHash }) {
     "x-amz-content-sha256": contentHash || crypto.createHash(`sha256`).update(body || "").digest("hex"),
   }, headers);
 
-  let authHeader = createAuthHeader({
+  headers.Authorization = createAuthHeader({
     isoDateTime: datetime,
     method: method,
     host: host,
@@ -61,8 +61,6 @@ function awsGlacierHttp({ method, subpath, headers, body, contentHash }) {
     accessKeyId: ACCESS_ID,
     secretAccessKey: ACCESS_SECRET,
   });
-
-  headers.Authorization = authHeader;
 
   return http({
     url: `https://${host}${path}`,
