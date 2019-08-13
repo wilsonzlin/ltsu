@@ -1,25 +1,30 @@
 {
-  "dependencies": {
-    "minimist": "^1.2.0",
-    "request": "^2.81.0"
-  },
   "name": "ltsu",
   "version": "0.0.1",
   "description": "Long Term Storage Uploader",
-  "main": "dist/main.js",
+  "bin": {
+    "ltsu": "dist/main.js"
+  },
   "files": [
     "dist/**"
   ],
+  "scripts": {
+    "build": "npm run clean && tsc",
+    "prepublishOnly": "npm run build",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.508.0",
+    "byte-size": "^5.0.1",
+    "minimist": "^1.2.0",
+    "p-queue": "^6.1.1",
+    "progress": "^2.0.3"
+  },
   "devDependencies": {
-    "@types/chai": "^4.1.4",
+    "@types/progress": "^2.0.3",
     "@types/minimist": "^1.2.0",
-    "@types/mocha": "^5.2.4",
-    "@types/node": "^10.5.2",
-    "@types/request": "^2.47.1",
-    "chai": "^4.1.2",
-    "mocha": "^5.2.0",
-    "ts-node": "^7.0.0",
-    "typescript": "^2.9.2"
+    "@types/node": "^12.7.1",
+    "typescript": "^3.5.3"
   },
   "repository": {
     "type": "git",
