@@ -42,6 +42,7 @@ export const AWSGlacier = async (ctx: Context, options: AWSGlacierOptions) => {
     description: `Checking for existing work...`,
   });
 
+  // TODO Ensure that session used same file with same contents and part size.
   const uploadId = (await maybeLoadExistingUploadId(ctx)) || (await (async () => {
     ctx.updateProgress({
       description: `No existing upload found, initiating new upload...`,
@@ -105,7 +106,7 @@ export const AWSGlacier = async (ctx: Context, options: AWSGlacierOptions) => {
     updateUploadProgress();
   };
 
-  // TODO Abort queue on error.
+  // TODO Abort queue on error and add option to allowing ignoring this session.
   const handleUploadPartFailure = (part: number, err: any) => {
     const r = retryCounts[part] || 0;
     if (r > ctx.maximumRetriesPerPart) {
