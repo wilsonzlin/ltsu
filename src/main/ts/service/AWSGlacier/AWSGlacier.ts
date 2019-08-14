@@ -75,7 +75,7 @@ export const AWSGlacier = async (ctx: Context, options: AWSGlacierOptions) => {
   const updateUploadProgress = () => {
     const partsRemaining = partsNeeded - partsCompleted;
     ctx.updateProgress({
-      description: `Uploading ${partsRemaining} ${sz(partSize)} parts (${sz(partsRemaining * partSize)})`,
+      description: `Uploading ${partsRemaining} ${sz(partSize)} parts (${sz(partsRemaining * partSize)})...`,
       completeRatio: partsCompleted / partsNeeded,
     });
   };

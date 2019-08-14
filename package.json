@@ -2,9 +2,7 @@
   "name": "ltsu",
   "version": "0.0.1",
   "description": "Long Term Storage Uploader",
-  "bin": {
-    "ltsu": "dist/main.js"
-  },
+  "bin": "dist/main.js",
   "files": [
     "dist/**"
   ],

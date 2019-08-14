@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import {promises as fs} from "fs";
 import * as path from "path";
 import {Progress} from "./Context";
@@ -44,8 +46,9 @@ const main = async (args: { [name: string]: string }): Promise<void> => {
   const concurrentUploads = +args.concurrency || DEFAULT_CONCURRENT_UPLOADS;
   const maximumRetriesPerPart = +args.retries || DEFAULT_MAX_RETRIES_PER_PART;
 
-  const progressBar = new ProgressBar(":title   [:bar]", {
+  const progressBar = new ProgressBar(":title [:bar] :percent", {
     total: 100,
+    width: Infinity,
     complete: "=",
     incomplete: " ",
     renderThrottle: 0,
