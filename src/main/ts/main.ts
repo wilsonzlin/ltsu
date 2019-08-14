@@ -48,7 +48,6 @@ const main = async (args: { [name: string]: string }): Promise<void> => {
 
   const progressBar = new ProgressBar(":title [:bar] :percent", {
     total: 100,
-    width: Infinity,
     complete: "=",
     incomplete: " ",
     renderThrottle: 0,
