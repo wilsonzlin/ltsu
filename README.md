@@ -52,7 +52,7 @@ Path to the directory that is used to hold state, such as information about resu
 
 **Default:** 3.
 
-How many parts to upload at the same time. Too many may cause rate limiting, increased errors, and degraded performance. Too few may result in very slow total upload times.
+How many parts to upload at the same time. A high value might cause rate limiting, increased errors, and degraded performance. A low value might result in very slow total upload times.
 
 #### `retries`
 
