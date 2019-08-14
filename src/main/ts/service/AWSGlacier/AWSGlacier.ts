@@ -5,13 +5,16 @@ import {uploadPart, UploadPartResponse} from "./uploadPart";
 import {maybeLoadExistingUploadId, saveUploadIdToSession} from "./session";
 import {computeFinalChecksum} from "./computeFinalChecksum";
 import {loadPartTreeHash, savePartTreeHash} from "./state";
-
-const byteSize = require("byte-size");
+import sz from "filesize";
 
 // See https://docs.aws.amazon.com/amazonglacier/latest/dev/uploading-archive-mpu.html for limits.
 const MAX_PARTS_PER_UPLOAD = 10000;
 const MIN_PART_SIZE = 1024 * 1024; // 1 MiB.
 const MAX_PART_SIZE = 1024 * 1024 * 1024 * 4; // 4 GiB.
+
+const nextPowerOfTwo = (n: number) => {
+  return Math.pow(2, Math.ceil(Math.log2(n)));
+};
 
 export interface AWSGlacierOptions {
   region: string;
@@ -27,14 +30,16 @@ export const AWSGlacier = async (ctx: Context, options: AWSGlacierOptions) => {
     region: options.region,
   });
 
-  const partSize = Math.max(MIN_PART_SIZE, ctx.file.size / MAX_PARTS_PER_UPLOAD);
+  const partSize = Math.max(MIN_PART_SIZE,
+    Math.min(MAX_PART_SIZE, nextPowerOfTwo(ctx.file.size / MAX_PARTS_PER_UPLOAD)));
   const partsNeeded = Math.ceil(ctx.file.size / partSize);
   if (partsNeeded < 1) {
     throw new Error(`File is too small`);
   }
   if (partsNeeded > MAX_PARTS_PER_UPLOAD) {
     throw new Error(
-      `File is too big and cannot fit into ${MAX_PARTS_PER_UPLOAD} parts of ${byteSize(MAX_PART_SIZE)} files`
+      `File is too big (${sz(ctx.file.size)}) and cannot fit into ${MAX_PARTS_PER_UPLOAD} ${sz(MAX_PART_SIZE)} parts ` +
+      `(requires ${partsNeeded} parts)`
     );
   }
 
@@ -68,15 +73,9 @@ export const AWSGlacier = async (ctx: Context, options: AWSGlacierOptions) => {
   const queue = new PQueue({concurrency: ctx.concurrentUploads});
 
   const updateUploadProgress = () => {
+    const partsRemaining = partsNeeded - partsCompleted;
     ctx.updateProgress({
-      description:
-        `Uploading ${
-        partsNeeded - partsCompleted
-          } ${
-          byteSize(partSize)
-          } parts (${
-          byteSize((partsNeeded - partsCompleted) * partSize)
-          })`,
+      description: `Uploading ${partsRemaining} ${sz(partSize)} parts (${sz(partsRemaining * partSize)})`,
       completeRatio: partsCompleted / partsNeeded,
     });
   };

@@ -15,15 +15,16 @@
   },
   "dependencies": {
     "aws-sdk": "^2.508.0",
-    "byte-size": "^5.0.1",
+    "filesize": "^4.1.2",
     "minimist": "^1.2.0",
     "p-queue": "^6.1.1",
     "progress": "^2.0.3"
   },
   "devDependencies": {
-    "@types/progress": "^2.0.3",
+    "@types/filesize": "^4.1.0",
     "@types/minimist": "^1.2.0",
     "@types/node": "^12.7.1",
+    "@types/progress": "^2.0.3",
     "typescript": "^3.5.3"
   },
   "repository": {
