@@ -10,13 +10,7 @@ Currently supports AWS S3 Glacier and Backblaze B2.
 
 - Handles server-side errors gracefully and automatically retries.
 - Uploads in parts simultaneously to balance performance, rate limits, and significance of errors.
-- Saves state during upload to support resuming and out-of-order uploading, even after crashes.
-
-## Status
-
-Worked reliably when tested with 370 GB file uploaded over several days continuously.
-
-Only tested on Ubuntu, but should work cross-platform.
+- Saves state during upload to support resuming and out-of-order uploading.
 
 ## Setup
 
@@ -84,3 +78,18 @@ ltsu \
 If the access ID or secret key is not provided, [environment variables or the shared credentials file](https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/setting-credentials-node.html) will be used. It's possible to choose [which profile](https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/loading-node-credentials-shared.html) in the shared credentials file to use.
 
 The account owning the vault must be the same as the account associated with the credentials.
+
+### Backblaze B2
+
+```bash
+ltsu \
+  --file /path/to/file \
+  --work /path/to/working/dir \
+  --concurrency 3 \
+  --retries 5 \
+  --service b2 \
+  --account B2_ACCOUNT_ID \
+  --key B2_APPLICATION_KEY \
+  --bucket B2_BUCKET_ID \ 
+  --vault MyVaultName
+```

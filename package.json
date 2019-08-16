@@ -11,18 +11,21 @@
     "prepublishOnly": "npm run build",
     "clean": "rm -rf dist"
   },
+  "//0": "Be careful when updating the AWS SDK version; the AWS S3 Glacier service patches SDK code for version ^2.508.0.",
   "dependencies": {
     "aws-sdk": "^2.508.0",
     "filesize": "^4.1.2",
     "minimist": "^1.2.0",
     "p-queue": "^6.1.1",
-    "progress": "^2.0.3"
+    "progress": "^2.0.3",
+    "request": "^2.88.0"
   },
   "devDependencies": {
     "@types/filesize": "^4.1.0",
     "@types/minimist": "^1.2.0",
     "@types/node": "^12.7.1",
     "@types/progress": "^2.0.3",
+    "@types/request": "^2.48.2",
     "typescript": "^3.5.3"
   },
   "repository": {

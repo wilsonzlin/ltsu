@@ -1,9 +1,9 @@
 {
   "include": [
-    "src/main/ts/**/*.ts"
+    "src/**/*.ts"
   ],
   "compilerOptions": {
-    "target": "es2018",
+    "target": "es6",
     "lib": [
       "es5",
       "es6"
@@ -16,6 +16,7 @@
     "outDir": "dist",
     "strict": true,
     "noImplicitAny": true,
+    "sourceMap": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "strictPropertyInitialization": true,
