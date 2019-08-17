@@ -1,7 +1,20 @@
 import request from "request";
 import fs from "fs";
+import AWS from "aws-sdk";
 
-export interface httpArguments {
+// Connections to services can frequently slow down due to load, congestion, maintenance,
+// degradation, shaping, issues, etc.
+// We don't want a part upload to abort halfway without a good reason as it might be a
+// large part.
+const HTTP_REQUEST_TIMEOUT = 120000; // 2 minutes.
+
+// Also set the AWS default HTTP request timeouts.
+AWS.config.httpOptions = {
+  connectTimeout: HTTP_REQUEST_TIMEOUT,
+  timeout: HTTP_REQUEST_TIMEOUT,
+};
+
+export interface HTTPRequest {
   method: "HEAD" | "GET" | "POST" | "PUT" | "DELETE";
   url: string;
   headers: { [name: string]: string | number };
@@ -25,7 +38,7 @@ const isPlainObject = (o: any): o is Object => {
   return proto == Object.prototype || proto == null;
 };
 
-export const http = <R = any> ({method, url, headers, body}: httpArguments): Promise<R> => {
+export const http = <R = any> ({method, url, headers, body}: HTTPRequest): Promise<R> => {
   return new Promise((resolve, reject) => {
     if (isPlainObject(body)) {
       body = JSON.stringify(body);
@@ -35,7 +48,7 @@ export const http = <R = any> ({method, url, headers, body}: httpArguments): Pro
       method,
       headers,
       body,
-      timeout: 120000, // 2 minutes
+      timeout: HTTP_REQUEST_TIMEOUT,
     }, (err, res) => {
       if (err) {
         reject(err);

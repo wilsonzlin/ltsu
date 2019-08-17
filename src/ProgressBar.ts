@@ -6,8 +6,10 @@ const VOID_CHAR = " ";
 const BAR_FORMAT_SPECIFIER = ":bar";
 
 export interface ProgressBarTokens {
+  // This should be a number between 0 and 100 (inclusive).
   percent: number;
 
+  // Values for other specifiers in the format string.
   [name: string]: string | number;
 }
 
@@ -22,6 +24,10 @@ const tokenFormat = (v: string | number): string => {
   if (typeof v == "string") {
     return v;
   }
+  // Format numbers to 2 decimal places, removing any trailing zeros and dots
+  // if it's a fractional number.
+  // Whole numbers can have trailing zeros, so don't just remove trailing zeros
+  // directly.
   let str = v.toFixed(2);
   let dotPos = str.lastIndexOf(".");
   if (dotPos != -1) {
@@ -50,10 +56,14 @@ export class ProgressBar {
     });
   }
 
+  // This function is to allow calling this.stream.cursorTo with only one argument.
+  // This works in Node.js and is needed but the type definitions don't allow it.
   private cursorTo (x: number) {
     (this.stream.cursorTo as any)(x);
   }
 
+  // This function is to allow calling this.stream.clearLine with only one argument.
+  // This works in Node.js but the type definitions don't allow it.
   private clearLine (dir?: tty.Direction) {
     this.stream.clearLine(dir!);
   }
@@ -71,6 +81,7 @@ export class ProgressBar {
         unfmtPart
       ));
     const combinedLength = left.length + right.length;
+    // Available space is one less on Windows due to 2-character line terminator instead of one on macOS, *nix.
     const availableSpace = this.stream.columns! - combinedLength - ((process.platform == "win32") as any);
 
     const width = Math.max(0, Math.min(this.maxWidth, availableSpace));
