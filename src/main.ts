@@ -3,7 +3,6 @@
 import {promises as fs} from "fs";
 import path from "path";
 import {Progress} from "./Context";
-import ProgressBar from "progress";
 import {AWSS3Glacier, parseAWSS3GlacierOptions} from "./service/AWSS3Glacier";
 import {nullableReadFile, nullableReadJson} from "./util/nullableReadFile";
 import {BackblazeB2, parseBackblazeB2Options} from "./service/BackblazeB2";
@@ -12,6 +11,7 @@ import {CLIArgs} from "./CLI";
 import {upload} from "./upload/upload";
 import {Session} from "./upload/session";
 import minimist = require("minimist");
+import {ProgressBar} from "./ProgressBar";
 
 const DEFAULT_CONCURRENT_UPLOADS = 3;
 
@@ -67,7 +67,7 @@ const main = async (rawArgs: string[], progressBar: ProgressBar): Promise<void> 
       size: fileStats.size,
     },
     logError: (msg: string) => {
-      progressBar.interrupt(msg);
+      progressBar.log(msg);
     },
     readState: (key: string) => {
       return nullableReadFile(statePath(workingDirectory, key));
@@ -76,7 +76,8 @@ const main = async (rawArgs: string[], progressBar: ProgressBar): Promise<void> 
       return nullableReadJson<Session>(sessionPath(workingDirectory));
     },
     updateProgress: (p: Progress) => {
-      progressBar.update(p.completeRatio, {
+      progressBar.update({
+        percent: p.completeRatio * 100,
         title: p.description,
       });
     },
@@ -91,19 +92,13 @@ const main = async (rawArgs: string[], progressBar: ProgressBar): Promise<void> 
   await upload(ctx, service, serviceState);
 };
 
-const progressBar = new ProgressBar(":title [:bar] :percent", {
-  total: 100,
-  complete: "=",
-  incomplete: " ",
-  renderThrottle: 0,
-  clear: true,
-});
+const progressBar = new ProgressBar(":title [:bar] :percent%");
 
 main(process.argv.slice(2), progressBar)
   .then(() => {
-    progressBar.terminate();
+    progressBar.clear();
     console.log(`File successfully uploaded`);
   }, (err: Error) => {
-    progressBar.terminate();
+    progressBar.clear();
     console.error(err);
   });
