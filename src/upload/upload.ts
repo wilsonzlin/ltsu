@@ -85,8 +85,10 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
 
     // Code awaits for queue to go idle later, so no need to handle individual queued upload Promises.
     queue.add(async () => {
-      // Exponential backoff if currently in a series of failures.
-      await wait(Math.min(MAX_RETRY_DELAY, 2 ** consecutiveFailures));
+      if (consecutiveFailures) {
+        // Exponential backoff if currently in a series of failures.
+        await wait(Math.min(MAX_RETRY_DELAY, 2 ** consecutiveFailures));
+      }
 
       let hash: Buffer;
       try {
