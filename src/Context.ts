@@ -1,14 +1,21 @@
-import {Session} from "./upload/session";
-
 export interface Progress {
   description: string;
   completeRatio: number;
+}
+
+export interface Session {
+  uploadId: string;
+  filePath: string;
+  fileLastChanged: number;
+  partSize: number;
+  partsNeeded: number;
 }
 
 export interface Context {
   file: {
     path: string;
     size: number;
+    lastModified: number;
   };
   concurrentUploads: number;
   resumeSession: () => Promise<Session | null>;

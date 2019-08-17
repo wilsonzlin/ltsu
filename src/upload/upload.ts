@@ -3,7 +3,6 @@ import sz from "filesize";
 import PQueue from "p-queue";
 import {Service} from "../service/Service";
 import {loadPartHash, savePartHash} from "./state";
-import {maybeLoadExistingUploadId, saveUploadIdToSession} from "./session";
 import fs from "fs";
 import path from "path";
 import {wait} from "../util/wait";
@@ -12,26 +11,6 @@ import {wait} from "../util/wait";
 const MAX_RETRY_DELAY = 60 * 5;
 
 export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
-  const partSize = Math.max(
-    svc.minPartSize,
-    Math.min(
-      svc.maxPartSize,
-      // TODO Part size should be loaded from session
-      // as idealPartSize can be non-deterministic.
-      await svc.idealPartSize(s, ctx.file.size)
-    )
-  );
-  const partsNeeded = Math.ceil(ctx.file.size / partSize);
-  if (partsNeeded < 1) {
-    throw new Error(`File is too small`);
-  }
-  if (partsNeeded > svc.maxParts) {
-    throw new Error(
-      `File is too big (${sz(ctx.file.size)}) and cannot fit into ${svc.maxParts} ${sz(svc.maxPartSize)} parts ` +
-      `(requires ${partsNeeded} parts)`
-    );
-  }
-
   ctx.log(`Upload started`);
 
   ctx.updateProgress({
@@ -39,18 +18,57 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
     completeRatio: 0,
   });
 
-  // TODO Ensure that session used same file with same contents and part size.
-  const uploadId = (await maybeLoadExistingUploadId(ctx)) || (await (async () => {
+  const {uploadId, filePath, fileLastChanged, partSize, partsNeeded} =
+  (await ctx.resumeSession()) ||
+  (await (async () => {
     ctx.updateProgress({
       description: `No existing upload found, initiating new upload...`,
       completeRatio: 0,
     });
+
+    // Calculate appropriate part size.
+    // Note that idealPartSize() can be non-deterministic.
+    const partSize = Math.max(
+      svc.minPartSize,
+      Math.min(
+        svc.maxPartSize,
+        await svc.idealPartSize(s, ctx.file.size)
+      )
+    );
+
+    // Validate how many parts are needed.
+    const partsNeeded = Math.ceil(ctx.file.size / partSize);
+    if (partsNeeded < 1) {
+      throw new Error(`File is too small`);
+    }
+    if (partsNeeded > svc.maxParts) {
+      throw new Error(
+        `File is too big (${sz(ctx.file.size)}) and cannot fit into ${svc.maxParts} ${sz(svc.maxPartSize)} parts ` +
+        `(requires ${partsNeeded} parts)`
+      );
+    }
+
+    // Initiate new upload with service.
     const uploadId = await svc.initiateNewUpload(s, path.basename(ctx.file.path), partSize);
-    await saveUploadIdToSession(ctx, uploadId);
-    return uploadId;
+
+    // Build and save new session.
+    const session = {
+      uploadId,
+      filePath: ctx.file.path,
+      fileLastChanged: ctx.file.lastModified,
+      partSize,
+      partsNeeded,
+    };
+    await ctx.writeSession(session);
+    return session;
   })());
 
-  // TODO Add ability to verify integrity of hashes.
+  // Ensure that session uses same file with same contents and part size.
+  if (filePath !== ctx.file.path || fileLastChanged !== ctx.file.lastModified) {
+    throw new Error(`Cannot resume upload as file has changed since last session`);
+  }
+
+  // TODO Add ability to verify integrity of hashes and invalidate specific parts.
   const partHashes = await Promise.all(
     new Array(partsNeeded)
       .fill(0)

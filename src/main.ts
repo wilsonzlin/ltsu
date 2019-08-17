@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 
-import {promises as fs} from "fs";
+import {promises as fs, Stats} from "fs";
 import path from "path";
-import {Context, Progress} from "./Context";
+import {Context, Session} from "./Context";
 import {AWSS3Glacier, parseAWSS3GlacierOptions} from "./service/AWSS3Glacier";
 import {nullableReadFile, nullableReadJson} from "./util/nullableReadFile";
 import {BackblazeB2, parseBackblazeB2Options} from "./service/BackblazeB2";
 import {Service} from "./service/Service";
 import {CLIArgs} from "./CLI";
 import {upload} from "./upload/upload";
-import {Session} from "./upload/session";
 import {ProgressBar} from "./ProgressBar";
 import minimist = require("minimist");
 
@@ -63,18 +62,21 @@ const logFormat = (msg: any) => `[${new Date().toISOString()}] ${msg}`;
 
 const filePath = args.file;
 const workingDirectory = args.work;
-let fileSize: number;
+let fileStats: Stats;
 
 const ctx: Context = {
   concurrentUploads,
   file: {
     path: filePath,
-    // Size isn't available right now, but will be loaded later before $ctx is used.
+    // File stats aren't available right now, but will be loaded later before $ctx is used.
     get size () {
-      return fileSize;
+      return fileStats.size;
+    },
+    get lastModified () {
+      return fileStats.mtimeMs;
     },
   },
-  log: (msg: string, info: boolean = false) => {
+  log: (msg, info = false) => {
     if (info && !verbose) {
       return;
     }
@@ -85,27 +87,14 @@ const ctx: Context = {
       console.error(out);
     }
   },
-  readState: (key: string) => {
-    return nullableReadFile(statePath(workingDirectory, key));
-  },
-  resumeSession: () => {
-    return nullableReadJson<Session>(sessionPath(workingDirectory));
-  },
-  updateProgress: (p: Progress) => {
-    if (!progressBar) {
-      return;
-    }
-    progressBar.update({
-      percent: p.completeRatio * 100,
-      title: p.description,
-    });
-  },
-  writeSession: (session: Session) => {
-    return fs.writeFile(sessionPath(workingDirectory), JSON.stringify(session));
-  },
-  writeState: (key: string, value: any) => {
-    return fs.writeFile(statePath(workingDirectory, key), value);
-  },
+  readState: key => nullableReadFile(statePath(workingDirectory, key)),
+  resumeSession: () => nullableReadJson<Session>(sessionPath(workingDirectory)),
+  updateProgress: p => progressBar && progressBar.update({
+    percent: p.completeRatio * 100,
+    title: p.description,
+  }),
+  writeSession: session => fs.writeFile(sessionPath(workingDirectory), JSON.stringify(session)),
+  writeState: (key, value) => fs.writeFile(statePath(workingDirectory, key), value),
 };
 
 const onEnd = (err: any) => {
@@ -119,15 +108,15 @@ const onEnd = (err: any) => {
   }
 };
 
-Promise.all([fs.stat(filePath), fs.stat(workingDirectory)])
-  .then(([fileStats, workStats]) => {
-    if (!fileStats.isFile()) {
+Promise.all([filePath, workingDirectory].map(fs.stat))
+  .then(([file, work]) => {
+    if (!file.isFile()) {
       throw new TypeError(`${filePath} is not a file`);
     }
-    if (!workStats.isDirectory()) {
+    if (!work.isDirectory()) {
       throw new TypeError(`${workingDirectory} is not a directory`);
     }
-    fileSize = fileStats.size;
+    fileStats = file;
     return service.fromOptions(serviceOptions);
   })
   .then(serviceState => upload(ctx, service, serviceState))
