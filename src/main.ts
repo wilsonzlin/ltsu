@@ -14,7 +14,6 @@ import {Session} from "./upload/session";
 import minimist = require("minimist");
 
 const DEFAULT_CONCURRENT_UPLOADS = 3;
-const DEFAULT_MAX_RETRIES_PER_PART = 5;
 
 const SERVICES: {
   [name: string]: {
@@ -55,7 +54,6 @@ const main = async (rawArgs: string[], progressBar: ProgressBar): Promise<void> 
   }
 
   const concurrentUploads = +args.concurrency || DEFAULT_CONCURRENT_UPLOADS;
-  const maximumRetriesPerPart = +args.retries || DEFAULT_MAX_RETRIES_PER_PART;
 
   const serviceName = args.service.toLowerCase();
   const {service, options: parseOptions} = SERVICES[serviceName];
@@ -64,7 +62,6 @@ const main = async (rawArgs: string[], progressBar: ProgressBar): Promise<void> 
 
   const ctx = {
     concurrentUploads,
-    maximumRetriesPerPart,
     file: {
       path: filePath,
       size: fileStats.size,

@@ -1,4 +1,4 @@
-import {Part, PartStreamFactory, Service, UploadedPart} from "./Service";
+import {Part, PartStreamFactory, Service} from "./Service";
 import {http, HTTPBadStatusError} from "../util/http";
 import {CLIArgs} from "../CLI";
 import {sha1File} from "../util/sha1File";
@@ -163,7 +163,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
     return res.fileId;
   },
 
-  async uploadPart (s: BackblazeB2State, uploadId: string, psf: PartStreamFactory, {number, start, end}: Part): Promise<UploadedPart> {
+  async uploadPart (s: BackblazeB2State, uploadId: string, psf: PartStreamFactory, {number, start, end}: Part): Promise<Buffer> {
     let uploadUrl: string;
     try {
       uploadUrl = await getUploadPartUrl(s.api.url, s.api.authToken, uploadId);
@@ -191,8 +191,6 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
       body: contents,
     });
 
-    return {
-      hash,
-    };
+    return hash;
   }
 };

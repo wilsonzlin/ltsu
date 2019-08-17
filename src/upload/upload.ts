@@ -6,6 +6,10 @@ import {loadPartHash, savePartHash} from "./state";
 import {maybeLoadExistingUploadId, saveUploadIdToSession} from "./session";
 import fs from "fs";
 import path from "path";
+import {wait} from "../util/wait";
+
+// 5 minutes.
+const MAX_RETRY_DELAY = 60 * 5;
 
 export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
   const partSize = Math.max(
@@ -52,7 +56,18 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
   );
 
   let partsCompleted = partHashes.filter(h => h != null).length;
-  const retryCounts: { [part: number]: number } = {};
+  // This value is used as the exponent for exponential backoff, and is
+  // incremented for every part upload failure and reset to zero on every
+  // successful upload.
+  //
+  // This means that intermittent failures will not encounter much delay (as
+  // this value doesn't increase much and will quickly be reset), but service
+  // issues will not cause constant rapid retries and wait longer until
+  // the service has resumed normal performance.
+  //
+  // The maximum retry delay is defined in the constant MAX_RETRY_DELAY,
+  // regardless of what 2 ^ $consecutiveFailures is.
+  let consecutiveFailures = 0;
   const queue = new PQueue({concurrency: ctx.concurrentUploads});
 
   const updateUploadProgress = () => {
@@ -67,40 +82,42 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
   const queuePartUploadTask = (part: number): void => {
     const start = part * partSize;
     const end = Math.min(ctx.file.size, (part + 1) * partSize) - 1;
-    queue.add(
-      () => svc.uploadPart(
-        s,
-        uploadId,
-        highWaterMark => fs.createReadStream(ctx.file.path, {highWaterMark, start, end}),
-        {number: part, start, end}
-      )
-        .then(
-          ({hash}) => handleUploadPartSuccess(part, hash),
-          err => handleUploadPartFailure(part, err)
-        ));
-  };
 
-  const handleUploadPartSuccess = (part: number, hash: Buffer) => {
-    partsCompleted++;
-    partHashes[part] = hash;
-    savePartHash(ctx, part, hash);
+    // Code awaits for queue to go idle later, so no need to handle individual queued upload Promises.
+    queue.add(async () => {
+      // Exponential backoff if currently in a series of failures.
+      await wait(Math.min(MAX_RETRY_DELAY, 2 ** consecutiveFailures));
 
-    updateUploadProgress();
-  };
+      let hash: Buffer;
+      try {
+        hash = await svc.uploadPart(
+          s,
+          uploadId,
+          highWaterMark => fs.createReadStream(ctx.file.path, {highWaterMark, start, end}),
+          {number: part, start, end}
+        );
+      } catch (err) {
+        // Part upload failed, increase delay, log, and requeue.
+        consecutiveFailures++;
+        ctx.logError(`Failed to upload part ${part} with error "${err}", retrying...`);
+        queuePartUploadTask(part);
+        return;
+      }
 
-  // TODO Abort queue on error and add option to allowing ignoring this session.
-  const handleUploadPartFailure = (part: number, err: any) => {
-    const r = retryCounts[part] || 0;
-    if (r > ctx.maximumRetriesPerPart) {
-      throw new Error(`Part ${part} failed to upload ${ctx.maximumRetriesPerPart} times, with final error: ${err}`);
-    }
-    retryCounts[part] = r + 1;
-    ctx.logError(`Failed to upload part ${part} with error "${err}", retrying (${r})...`);
-    queuePartUploadTask(part);
+      // Part successfully uploaded.
+      partsCompleted++;
+      // Reset failure streak.
+      consecutiveFailures = 0;
+      partHashes[part] = hash;
+      await savePartHash(ctx, part, hash);
+
+      updateUploadProgress();
+    });
   };
 
   for (const [part, hash] of partHashes.entries()) {
     if (hash) {
+      // Hash exists so already previously uploaded.
       continue;
     }
     queuePartUploadTask(part);

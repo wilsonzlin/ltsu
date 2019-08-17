@@ -6,11 +6,14 @@ CLI for uploading very large single files to "cold" long-term cloud storage serv
 
 Currently supports AWS S3 Glacier and Backblaze B2.
 
+![Demo run of uploading to AWS S3 Glacier using ltsu](demo.gif)
+
 ## Features
 
-- Handles server-side errors gracefully and automatically retries.
-- Uploads in parts simultaneously to balance performance, rate limits, and significance of errors.
+- Handles server-side errors gracefully and automatically retries forever with exponential backoff.
+- Uploads in parts simultaneously to balance performance, rate limits, and impact of errors.
 - Saves state during upload to support resuming and out-of-order uploading.
+- Uses file streams for low constant memory usage, even for large files.
 
 ## Setup
 
@@ -48,12 +51,6 @@ Path to the directory that is used to hold state, such as information about resu
 
 How many parts to upload at the same time. A high value might cause rate limiting, increased errors, and degraded performance. A low value might result in very slow total upload times.
 
-#### `retries`
-
-**Default:** 5.
-
-How many times to retry uploading a part before failing with an error and aborting the entire process or skipping the part (the process will not complete, but other parts will continue uploading).
-
 #### `service`
 
 **Required: one of** `aws`, `b2`.
@@ -67,7 +64,6 @@ ltsu \
   --file /path/to/file \
   --work /path/to/working/dir \
   --concurrency 3 \
-  --retries 5 \
   --service aws \
   --region AWS_REGION \
   --access AWS_ACCESS_KEY_ID \
@@ -86,7 +82,6 @@ ltsu \
   --file /path/to/file \
   --work /path/to/working/dir \
   --concurrency 3 \
-  --retries 5 \
   --service b2 \
   --account B2_ACCOUNT_ID \
   --key B2_APPLICATION_KEY \

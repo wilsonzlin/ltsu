@@ -11,7 +11,6 @@ export interface Context {
     size: number;
   };
   concurrentUploads: number;
-  maximumRetriesPerPart: number;
   resumeSession: () => Promise<Session | null>;
   writeSession: (session: Session) => Promise<void>;
   readState: (key: string) => Promise<Buffer | null>;

@@ -1,5 +1,5 @@
 import AWS from "aws-sdk";
-import {Part, PartStreamFactory, Service, UploadedPart} from "./Service";
+import {Part, PartStreamFactory, Service} from "./Service";
 import crypto from "crypto";
 import fs from "fs";
 import {CLIArgs} from "../CLI";
@@ -213,7 +213,7 @@ export const AWSS3Glacier: Service<AWSS3GlacierOptions, AWSS3GlacierState> = {
     }).promise()).uploadId!;
   },
 
-  async uploadPart (s: AWSS3GlacierState, uploadId: string, psf: PartStreamFactory, {start, end}: Part): Promise<UploadedPart> {
+  async uploadPart (s: AWSS3GlacierState, uploadId: string, psf: PartStreamFactory, {start, end}: Part): Promise<Buffer> {
     const res = await s.service.uploadMultipartPart({
       accountId: "-",
       // See comment above the AWS.Glacier.prototype.addTreeHashHeaders patch above to see why.
@@ -223,10 +223,6 @@ export const AWSS3Glacier: Service<AWSS3GlacierOptions, AWSS3GlacierState> = {
       vaultName: s.vaultName,
     }).promise();
 
-    const serverSentTreeHash = Buffer.from(res.checksum!, "hex");
-
-    return {
-      hash: serverSentTreeHash,
-    };
+    return Buffer.from(res.checksum!, "hex");
   }
 };

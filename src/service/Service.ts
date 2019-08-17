@@ -4,10 +4,6 @@ export interface PartStreamFactory {
   (highWaterMark?: number): fs.ReadStream;
 }
 
-export interface UploadedPart {
-  hash: Buffer;
-}
-
 export interface Part {
   number: number;
   start: number;
@@ -26,7 +22,7 @@ export interface Service<O, S> {
 
   initiateNewUpload (s: S, fileName: string, partSize: number): Promise<string>;
 
-  uploadPart (s: S, uploadId: string, psf: PartStreamFactory, details: Part): Promise<UploadedPart>;
+  uploadPart (s: S, uploadId: string, psf: PartStreamFactory, details: Part): Promise<Buffer>;
 
   completeUpload (s: S, uploadId: string, fileSize: number, partHashes: Buffer[]): Promise<void>;
 }
