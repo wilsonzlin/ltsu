@@ -15,6 +15,6 @@ export interface Context {
   writeSession: (session: Session) => Promise<void>;
   readState: (key: string) => Promise<Buffer | null>;
   writeState: (key: string, value: Buffer) => Promise<void>;
-  logError: (message: string) => void;
+  log: (message: string, info?: boolean) => void;
   updateProgress: (progress: Progress) => void;
 }

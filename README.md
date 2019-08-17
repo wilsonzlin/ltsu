@@ -51,6 +51,18 @@ Path to the directory that is used to hold state, such as information about resu
 
 How many parts to upload at the same time. A high value might cause rate limiting, increased errors, and degraded performance. A low value might result in very slow total upload times.
 
+#### `quiet`
+
+**Optional.**
+
+Hide the progress bar. This option can be used in tandem with `verbose`.
+
+#### `verbose`
+
+**Optional.**
+
+Log whenever a part has been successfully uploaded. This option can be used in tandem with `quiet`.
+
 #### `service`
 
 **Required: one of** `aws`, `b2`.

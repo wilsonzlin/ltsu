@@ -2,7 +2,7 @@
 
 import {promises as fs} from "fs";
 import path from "path";
-import {Progress} from "./Context";
+import {Context, Progress} from "./Context";
 import {AWSS3Glacier, parseAWSS3GlacierOptions} from "./service/AWSS3Glacier";
 import {nullableReadFile, nullableReadJson} from "./util/nullableReadFile";
 import {BackblazeB2, parseBackblazeB2Options} from "./service/BackblazeB2";
@@ -10,8 +10,8 @@ import {Service} from "./service/Service";
 import {CLIArgs} from "./CLI";
 import {upload} from "./upload/upload";
 import {Session} from "./upload/session";
-import minimist = require("minimist");
 import {ProgressBar} from "./ProgressBar";
+import minimist = require("minimist");
 
 const DEFAULT_CONCURRENT_UPLOADS = 3;
 
@@ -31,6 +31,16 @@ const SERVICES: {
   },
 };
 
+const exit = (error?: string): never => {
+  if (error) {
+    console.error(error);
+  }
+  process.exit(error ? 1 : 0);
+  // This is for TypeScript, which doesn't recognise that
+  // calling process.exit doesn't return.
+  throw 1;
+};
+
 const sessionPath = (workDir: string): string => {
   return path.join(workDir, "session");
 };
@@ -39,66 +49,86 @@ const statePath = (workDir: string, key: string): string => {
   return path.join(workDir, `state_${key}`);
 };
 
-const main = async (rawArgs: string[], progressBar: ProgressBar): Promise<void> => {
-  const args = minimist(rawArgs);
+const args = minimist(process.argv.slice(2));
 
-  const filePath = args.file;
-  const fileStats = await fs.stat(filePath);
-  if (!fileStats.isFile()) {
-    throw new Error(`${filePath} is not a file`);
-  }
+const concurrentUploads = +args.concurrency || DEFAULT_CONCURRENT_UPLOADS;
+const quiet = !!args.quiet;
+const verbose = !!args.verbose;
 
-  const workingDirectory = args.work;
-  if (!(await fs.stat(workingDirectory)).isDirectory()) {
-    throw new Error(`${workingDirectory} is not a directory`);
-  }
+const {service, options: parseOptions} = SERVICES[args.service.toLowerCase()];
+const serviceOptions = parseOptions(args);
 
-  const concurrentUploads = +args.concurrency || DEFAULT_CONCURRENT_UPLOADS;
+const progressBar = quiet ? null : new ProgressBar(":title [:bar] :percent%");
+const logFormat = (msg: any) => `[${new Date().toISOString()}] ${msg}`;
 
-  const serviceName = args.service.toLowerCase();
-  const {service, options: parseOptions} = SERVICES[serviceName];
-  const serviceOptions = parseOptions(args);
-  const serviceState = await service.fromOptions(serviceOptions);
+const filePath = args.file;
+const workingDirectory = args.work;
+let fileSize: number;
 
-  const ctx = {
-    concurrentUploads,
-    file: {
-      path: filePath,
-      size: fileStats.size,
+const ctx: Context = {
+  concurrentUploads,
+  file: {
+    path: filePath,
+    // Size isn't available right now, but will be loaded later before $ctx is used.
+    get size () {
+      return fileSize;
     },
-    logError: (msg: string) => {
-      progressBar.log(msg);
-    },
-    readState: (key: string) => {
-      return nullableReadFile(statePath(workingDirectory, key));
-    },
-    resumeSession: () => {
-      return nullableReadJson<Session>(sessionPath(workingDirectory));
-    },
-    updateProgress: (p: Progress) => {
-      progressBar.update({
-        percent: p.completeRatio * 100,
-        title: p.description,
-      });
-    },
-    writeSession: (session: Session) => {
-      return fs.writeFile(sessionPath(workingDirectory), JSON.stringify(session));
-    },
-    writeState: (key: string, value: any) => {
-      return fs.writeFile(statePath(workingDirectory, key), value);
-    },
-  };
-
-  await upload(ctx, service, serviceState);
+  },
+  log: (msg: string, info: boolean = false) => {
+    if (info && !verbose) {
+      return;
+    }
+    const out = logFormat(msg);
+    if (progressBar) {
+      progressBar.log(out);
+    } else {
+      console.error(out);
+    }
+  },
+  readState: (key: string) => {
+    return nullableReadFile(statePath(workingDirectory, key));
+  },
+  resumeSession: () => {
+    return nullableReadJson<Session>(sessionPath(workingDirectory));
+  },
+  updateProgress: (p: Progress) => {
+    if (!progressBar) {
+      return;
+    }
+    progressBar.update({
+      percent: p.completeRatio * 100,
+      title: p.description,
+    });
+  },
+  writeSession: (session: Session) => {
+    return fs.writeFile(sessionPath(workingDirectory), JSON.stringify(session));
+  },
+  writeState: (key: string, value: any) => {
+    return fs.writeFile(statePath(workingDirectory, key), value);
+  },
 };
 
-const progressBar = new ProgressBar(":title [:bar] :percent%");
+const onEnd = (err: any) => {
+  if (progressBar) {
+    progressBar.clear();
+  }
+  if (err) {
+    exit(err.stack || err);
+  } else {
+    exit();
+  }
+};
 
-main(process.argv.slice(2), progressBar)
-  .then(() => {
-    progressBar.clear();
-    console.log(`File successfully uploaded`);
-  }, (err: Error) => {
-    progressBar.clear();
-    console.error(err);
-  });
+Promise.all([fs.stat(filePath), fs.stat(workingDirectory)])
+  .then(([fileStats, workStats]) => {
+    if (!fileStats.isFile()) {
+      throw new TypeError(`${filePath} is not a file`);
+    }
+    if (!workStats.isDirectory()) {
+      throw new TypeError(`${workingDirectory} is not a directory`);
+    }
+    fileSize = fileStats.size;
+    return service.fromOptions(serviceOptions);
+  })
+  .then(serviceState => upload(ctx, service, serviceState))
+  .then(onEnd, onEnd);

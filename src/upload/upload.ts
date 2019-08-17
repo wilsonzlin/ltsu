@@ -32,6 +32,8 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
     );
   }
 
+  ctx.log(`Upload started`);
+
   ctx.updateProgress({
     description: `Checking for existing work...`,
     completeRatio: 0,
@@ -101,12 +103,13 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
       } catch (err) {
         // Part upload failed, increase delay, log, and requeue.
         consecutiveFailures++;
-        ctx.logError(`Failed to upload part ${part} with error "${err}", retrying...`);
+        ctx.log(`Failed to upload part ${part} with error "${err}", retrying...`);
         queuePartUploadTask(part);
         return;
       }
 
       // Part successfully uploaded.
+      ctx.log(`Uploaded part ${part}`, true);
       partsCompleted++;
       // Reset failure streak.
       consecutiveFailures = 0;
@@ -135,4 +138,6 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
   });
 
   await svc.completeUpload(s, uploadId, ctx.file.size, partHashes as Buffer[]);
+
+  ctx.log(`File successfully uploaded`);
 };
