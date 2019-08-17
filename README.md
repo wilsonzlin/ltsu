@@ -33,37 +33,37 @@ npx ltsu --file file --work workdir [...]
 
 ### Common arguments
 
-#### `file`
+#### `--file`
 
 **Required.**
 
 Path to the file to upload.
 
-#### `work`
+#### `--work`
 
 **Required.**
 
 Path to the directory that is used to hold state, such as information about resuming uploads.
 
-#### `concurrency`
+#### `--concurrency`
 
 **Default:** 3.
 
 How many parts to upload at the same time. A high value might cause rate limiting, increased errors, and degraded performance. A low value might result in very slow total upload times.
 
-#### `quiet`
+#### `--quiet`
 
 **Optional.**
 
 Hide the progress bar. This option can be used in tandem with `verbose`.
 
-#### `verbose`
+#### `--verbose`
 
 **Optional.**
 
 Log whenever a part has been successfully uploaded. This option can be used in tandem with `quiet`.
 
-#### `service`
+#### `--service`
 
 **Required: one of** `aws`, `b2`.
 
@@ -79,7 +79,7 @@ ltsu \
   --service aws \
   --region AWS_REGION \
   --access AWS_ACCESS_KEY_ID \
-  --secret AWS_SECRET_ACCESS_KEY \ 
+  --secret AWS_SECRET_ACCESS_KEY \
   --vault MyVaultName
 ```
 
@@ -97,6 +97,6 @@ ltsu \
   --service b2 \
   --account B2_ACCOUNT_ID \
   --key B2_APPLICATION_KEY \
-  --bucket B2_BUCKET_ID \ 
+  --bucket B2_BUCKET_ID \
   --vault MyVaultName
 ```
