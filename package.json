@@ -1,7 +1,7 @@
 {
   "name": "ltsu",
   "version": "1.0.0",
-  "description": "Long Term Storage Uploader",
+  "description": "Resumable multipart large file uploads to AWS S3 Glacier and Backblaze B2",
   "bin": "dist/main.js",
   "files": [
     "dist/**"
