@@ -1,5 +1,5 @@
 import tty from "tty";
-import * as os from "os";
+import os from "os";
 
 const FILL_CHAR = "=";
 const VOID_CHAR = " ";
