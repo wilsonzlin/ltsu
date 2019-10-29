@@ -59,13 +59,13 @@ npx ltsu --file file --work workdir [...]
 
 |Name|Value|Description|
 |---|---|---|
-|`--file`|**Required.**|Path to the file to upload.|
-|`--work`|**Required.**|Path to the directory that is used to hold state, such as information about resuming uploads.<br>This folder will be filled with many files, so write permissions are required, existing files might be overwritten, and it may get cluttered.<br>It's best to provide an empty directory for the exclusive use of one upload.|
-|`--concurrency`|**Default:** 3.|How many parts to upload at the same time. A high value might cause rate limiting, increased errors, and degraded performance. A low value might result in very slow total upload times.|
-|`--quiet`|**Optional.**|Hide the progress bar. This option can be used in tandem with `verbose`.|
-|`--verbose`|**Optional.**|Log whenever a part has been successfully uploaded. This option can be used in tandem with `quiet`.|
-|`--force`|**Optional.**|Always resume existing session, even if file is not the same or has changed since.|
-|`--service`|**Required, one of:** `aws`, `b2`.|Which cloud service to use.|
+|`--file`|**Required**|Path to the file to upload.|
+|`--work`|**Required**|Path to the directory that is used to hold state, such as information about resuming uploads.<br>This folder will be filled with many files, so write permissions are required, existing files might be overwritten, and it may get cluttered.<br>It's best to provide an empty directory for the exclusive use of one upload.|
+|`--concurrency`|Default: 3|How many parts to upload at the same time. A high value might cause rate limiting, increased errors, and degraded performance. A low value might result in very slow total upload times.|
+|`--quiet`|Optional|Hide the progress bar. This option can be used in tandem with `verbose`.|
+|`--verbose`|Optional|Log whenever a part has been successfully uploaded. This option can be used in tandem with `quiet`.|
+|`--force`|Optional|Always resume existing session, even if file is not the same or has changed since.|
+|`--service`|**Required, one of:** `aws`, `b2`|Which cloud service to use.|
 
 ### AWS S3 Glacier
 
