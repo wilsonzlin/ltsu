@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
-import {promises as fs, Stats} from "fs";
+import {promises as fs, realpathSync, Stats} from "fs";
 import path from "path";
+import {CLIArgs} from "./CLI";
 import {Context, Session} from "./Context";
+import {ProgressBar} from "./ProgressBar";
 import {AWSS3Glacier, parseAWSS3GlacierOptions} from "./service/AWSS3Glacier";
-import {nullableReadFile, nullableReadJson} from "./util/nullableReadFile";
 import {BackblazeB2, parseBackblazeB2Options} from "./service/BackblazeB2";
 import {Service} from "./service/Service";
-import {CLIArgs} from "./CLI";
 import {upload} from "./upload/upload";
-import {ProgressBar} from "./ProgressBar";
+import {nullableReadFile, nullableReadJson} from "./util/nullableReadFile";
 import minimist = require("minimist");
 
 const DEFAULT_CONCURRENT_UPLOADS = 3;
@@ -61,8 +61,8 @@ const serviceOptions = parseOptions(args);
 const progressBar = quiet ? null : new ProgressBar(":title [:bar] :percent%");
 const logFormat = (msg: any) => `[${new Date().toISOString()}] ${msg}`;
 
-const filePath = args.file;
-const workingDirectory = args.work;
+const filePath = realpathSync(args.file);
+const workingDirectory = realpathSync(args.work);
 let fileStats: Stats;
 
 const ctx: Context = {
