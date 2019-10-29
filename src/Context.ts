@@ -6,7 +6,7 @@ export interface Progress {
 export interface Session {
   uploadId: string;
   filePath: string;
-  fileLastChanged: number;
+  fileLastChanged: string;
   partSize: number;
   partsNeeded: number;
 }
@@ -15,8 +15,10 @@ export interface Context {
   file: {
     path: string;
     size: number;
-    lastModified: number;
+    // Use string for more reliable comparison than floating point numbers.
+    lastModified: string;
   };
+  force: boolean;
   concurrentUploads: number;
   resumeSession: () => Promise<Session | null>;
   writeSession: (session: Session) => Promise<void>;

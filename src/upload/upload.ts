@@ -62,9 +62,11 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
     return session;
   })());
 
-  // Ensure that session uses same file with same contents and part size.
-  if (filePath !== ctx.file.path || fileLastChanged !== ctx.file.lastModified) {
-    throw new Error(`Cannot resume upload as file has changed since last session`);
+  if (!ctx.force) {
+    // Ensure that session uses same file with same contents and part size.
+    if (filePath !== ctx.file.path || fileLastChanged !== ctx.file.lastModified) {
+      throw new Error(`Cannot resume upload as file has changed since last session`);
+    }
   }
 
   // TODO Add ability to verify integrity of hashes and invalidate specific parts.

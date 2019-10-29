@@ -1,4 +1,4 @@
-import {Glacier as OriginalGlacier} from "aws-sdk";
+import AWS from "aws-sdk";
 import crypto from "crypto";
 import {createReadStream, promises as fs, ReadStream} from "fs";
 import {CLIArgs} from "../CLI";
@@ -8,20 +8,6 @@ import {PartDetails, Service} from "./Service";
 
 type ReadStreamWithPartDetails = ReadStream & { __ltsuPartDetails: PartDetails };
 type AWSGlacierRequestBody = ReadStreamWithPartDetails | Buffer | string | undefined;
-
-declare namespace AWS {
-  class Glacier extends OriginalGlacier {
-    // This is an internal-only method usually not declared via public TS declaration files.
-    addTreeHashHeaders (
-      request: {
-        params: { body: AWSGlacierRequestBody };
-        httpRequest: { headers: { [name: string]: string } };
-        service: AWS.Glacier,
-      },
-      callNextListener: (err?: any) => void,
-    ): void;
-  }
-}
 
 const isReadStreamWithPartDetails = (body: AWSGlacierRequestBody): body is ReadStreamWithPartDetails => {
   return body instanceof ReadStream && !!body.__ltsuPartDetails;
@@ -146,7 +132,15 @@ const calculateTreeAndLinearHashesOfPart = async ({path, start, end}: { path: st
 // a ReadStream as the body value (which the SDK does support uploading from) with
 // a `psf` property that, when called, creates a new ReadStream of the same part,
 // as the initial ReadStream will be consumed when building the hashes.
-AWS.Glacier.prototype.addTreeHashHeaders = async (request, callNextListener) => {
+// @ts-ignore
+AWS.Glacier.prototype.addTreeHashHeaders = async (
+  request: {
+    params: { body: AWSGlacierRequestBody };
+    httpRequest: { headers: { [name: string]: string } };
+    service: AWS.Glacier,
+  },
+  callNextListener: (err?: any) => void,
+) => {
   const body = request.params.body;
   if (isReadStreamWithPartDetails(body)) {
     const {path, start, end} = body.__ltsuPartDetails;

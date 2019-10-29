@@ -53,6 +53,7 @@ const args = minimist(process.argv.slice(2));
 const concurrentUploads = +args.concurrency || DEFAULT_CONCURRENT_UPLOADS;
 const quiet = !!args.quiet;
 const verbose = !!args.verbose;
+const force = !!args.force;
 
 const {service, options: parseOptions} = SERVICES[args.service.toLowerCase()];
 const serviceOptions = parseOptions(args);
@@ -73,9 +74,10 @@ const ctx: Context = {
       return fileStats.size;
     },
     get lastModified () {
-      return fileStats.mtimeMs;
+      return fileStats.mtime.toISOString();
     },
   },
+  force,
   log: (msg, info = false) => {
     if (info && !verbose) {
       return;
