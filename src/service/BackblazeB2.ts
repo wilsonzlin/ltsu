@@ -1,7 +1,8 @@
-import {Part, PartStreamFactory, Service} from "./Service";
-import {http, HTTPBadStatusError} from "../util/http";
+import {createReadStream} from "fs";
 import {CLIArgs} from "../CLI";
+import {http, HTTPBadStatusError} from "../util/http";
 import {sha1File} from "../util/sha1File";
+import {Service} from "./Service";
 
 class AuthenticatedAPI {
   private readonly accountId: string;
@@ -163,7 +164,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
     return res.fileId;
   },
 
-  async uploadPart (s: BackblazeB2State, uploadId: string, psf: PartStreamFactory, {number, start, end}: Part): Promise<Buffer> {
+  async uploadPart (s, uploadId, {path, number, start, end}): Promise<Buffer> {
     let uploadUrl: string;
     try {
       uploadUrl = await getUploadPartUrl(s.api.url, s.api.authToken, uploadId);
@@ -176,8 +177,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
       throw err;
     }
 
-    const hash = await sha1File(psf());
-    const contents = psf();
+    const hash = await sha1File(createReadStream(path, {start, end}));
     await http({
       method: `POST`,
       url: uploadUrl,
@@ -188,7 +188,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
         "Content-Length": end - start + 1,
         "X-Bz-Content-Sha1": hash.toString("hex"),
       },
-      body: contents,
+      body: createReadStream(path, {start, end}),
     });
 
     return hash;

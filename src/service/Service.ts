@@ -1,10 +1,5 @@
-import fs from "fs";
-
-export interface PartStreamFactory {
-  (highWaterMark?: number): fs.ReadStream;
-}
-
-export interface Part {
+export interface PartDetails {
+  path: string;
   number: number;
   start: number;
   end: number;
@@ -22,7 +17,7 @@ export interface Service<O, S> {
 
   initiateNewUpload (s: S, fileName: string, partSize: number): Promise<string>;
 
-  uploadPart (s: S, uploadId: string, psf: PartStreamFactory, details: Part): Promise<Buffer>;
+  uploadPart (s: S, uploadId: string, details: PartDetails): Promise<Buffer>;
 
   completeUpload (s: S, uploadId: string, fileSize: number, partHashes: Buffer[]): Promise<void>;
 }

@@ -1,11 +1,10 @@
-import {Context} from "../Context";
 import sz from "filesize";
 import PQueue from "p-queue";
-import {Service} from "../service/Service";
-import {loadPartHash, savePartHash} from "./state";
-import fs from "fs";
 import path from "path";
+import {Context} from "../Context";
+import {Service} from "../service/Service";
 import {wait} from "../util/wait";
+import {loadPartHash, savePartHash} from "./state";
 
 // 5 minutes.
 const MAX_RETRY_DELAY = 60 * 5;
@@ -115,8 +114,7 @@ export const upload = async <S> (ctx: Context, svc: Service<any, S>, s: S) => {
         hash = await svc.uploadPart(
           s,
           uploadId,
-          highWaterMark => fs.createReadStream(ctx.file.path, {highWaterMark, start, end}),
-          {number: part, start, end}
+          {path: ctx.file.path, number: part, start, end}
         );
       } catch (err) {
         // Part upload failed, increase delay, log, and requeue.
