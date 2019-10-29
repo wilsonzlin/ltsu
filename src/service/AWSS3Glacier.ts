@@ -70,58 +70,60 @@ const MiB = 1024 * 1024;
 const calculateTreeAndLinearHashesOfPart = async ({path, start, end}: { path: string, start: number, end: number }): Promise<{ linear: Buffer; tree: Buffer; }> => {
   const tree: { level: number; hash: Buffer }[] = [];
   const linear = crypto.createHash("sha256");
-  const chunksCount = Math.ceil((end - start + 1) / MiB);
 
   const fd = await fs.open(path, "r");
 
   try {
-    for (let chunkNo = 0; chunkNo < chunksCount; chunkNo++) {
-      const chunkStart = start + chunkNo * MiB;
+    for (let chunkStart = start; chunkStart <= end; chunkStart += MiB) {
+      // Calculate chunk range and length.
       const chunkEnd = Math.min(chunkStart + MiB - 1, end);
       const chunkSize = chunkEnd - chunkStart + 1;
 
-      const buf = Buffer.allocUnsafe(chunkSize);
-      const read = await fd.read(buf, 0, chunkSize, chunkStart);
-      assertTrue(read.bytesRead === chunkSize);
-      const chunk = read.buffer;
+      // Read chunk.
+      const chunk = Buffer.allocUnsafe(chunkSize);
+      const {bytesRead} = await fd.read(chunk, 0, chunkSize, chunkStart);
+      assertTrue(bytesRead === chunkSize);
+
+      // Build linear hash.
       linear.update(chunk);
 
-      const hash = crypto.createHash(`sha256`).update(chunk).digest();
+      // Build tree hash.
       tree.push({
         level: 1,
-        hash: hash,
+        hash: crypto.createHash("sha256").update(chunk).digest(),
       });
       while (tree.length > 1 && tree[tree.length - 1].level === tree[tree.length - 2].level) {
         const right = assertExists(tree.pop());
         const left = assertExists(tree.pop());
         tree.push({
           level: right.level + 1,
-          hash: crypto.createHash(`sha256`).update(
-            Buffer.concat([left.hash, right.hash])
-          ).digest(),
+          hash: crypto.createHash("sha256")
+            .update(Buffer.concat([left.hash, right.hash]))
+            .digest(),
         });
       }
     }
-
-    while (tree.length > 1) {
-      const right = assertExists(tree.pop());
-      const left = assertExists(tree.pop());
-      tree.push({
-        // To silence type errors.
-        level: -1,
-        hash: crypto.createHash(`sha256`)
-          .update(Buffer.concat([left.hash, right.hash]))
-          .digest(),
-      });
-    }
-
-    return {
-      tree: tree[0].hash,
-      linear: linear.digest(),
-    };
   } finally {
     await fd.close();
   }
+
+  // Finalise tree hash.
+  while (tree.length > 1) {
+    const right = assertExists(tree.pop());
+    const left = assertExists(tree.pop());
+    tree.push({
+      // To silence type errors.
+      level: -1,
+      hash: crypto.createHash("sha256")
+        .update(Buffer.concat([left.hash, right.hash]))
+        .digest(),
+    });
+  }
+
+  return {
+    tree: tree[0].hash,
+    linear: linear.digest(),
+  };
 };
 
 // Patch internal method addTreeHashHeaders on AWS.Glacier class to support
@@ -205,12 +207,13 @@ export const AWSS3Glacier: Service<AWSS3GlacierOptions, AWSS3GlacierState> = {
   },
 
   async initiateNewUpload (s, fileName, partSize) {
-    return (await s.service.initiateMultipartUpload({
+    const result = await s.service.initiateMultipartUpload({
       accountId: "-",
       vaultName: s.vaultName,
       partSize: `${partSize}`,
       archiveDescription: fileName,
-    }).promise()).uploadId!;
+    }).promise();
+    return assertExists(result.uploadId);
   },
 
   async uploadPart (s, uploadId, part) {
@@ -224,6 +227,6 @@ export const AWSS3Glacier: Service<AWSS3GlacierOptions, AWSS3GlacierState> = {
       vaultName: s.vaultName,
     }).promise();
 
-    return Buffer.from(res.checksum!, "hex");
+    return Buffer.from(assertExists(res.checksum), "hex");
   }
 };
