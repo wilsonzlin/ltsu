@@ -35,7 +35,7 @@ Currently supports AWS S3 Glacier and Backblaze B2.
 
 ## Requirements
 
-ltsu is written in TypeScript and requires [Node.js](https://nodejs.org), available on Windows, macOS, and Linux.
+ltsu is written in TypeScript and requires [Node.js](https://nodejs.org) version 10 or greater, available on Windows, macOS, and Linux.
 
 npm is the default package manager that comes with Node.js and is used to install ltsu or run it on demand using npx.
 
@@ -46,6 +46,8 @@ To install it as a CLI tool:
 ```bash
 npm i -g ltsu
 ```
+
+This creates an executable in the global npm bin folder, so ensure that it's in the `PATH` environment variable. This folder can be found by running `npm bin -g`.
 
 To use it directly without installing:
 
@@ -66,6 +68,12 @@ npx ltsu --file file --work workdir [...]
 |`--verbose`|Optional|Log whenever a part has been successfully uploaded. This option can be used in tandem with `quiet`.|
 |`--force`|Optional|Always resume existing session, even if file is not the same or has changed since.|
 |`--service`|**Required, one of:** `aws`, `b2`|Which cloud service to use.|
+
+### Resuming
+
+To resume an upload, simply run ltsu with the same `--file` and `--work` arguments.
+
+If the file has changed since the last upload session, ltsu will refuse to run. Use `--force` to override this behaviour.
 
 ### AWS S3 Glacier
 
@@ -94,6 +102,18 @@ ltsu \
 ```
 
 ### Backblaze B2
+
+An application key is required. Generate one from https://secure.backblaze.com/app_keys.htm. Both master and non-master keys can be used.
+
+A key has two fields of interest: `keyID` and `applicationKey`. These need to be provided to ltsu as arguments.
+
+|Name|Description|
+|---|---|
+|`--account`|Key ID.|
+|`--key`|Application key.|
+|`--bucket`|Bucket ID (not name).|
+
+Full command format:
 
 ```bash
 ltsu \
