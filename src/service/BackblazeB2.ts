@@ -53,7 +53,7 @@ class AuthenticatedAPI {
       })
         .then(res => {
           this._authToken = res.authorizationToken;
-          this._url = res.url;
+          this._url = res.apiUrl;
           this._recommendedPartSize = res.recommendedPartSize;
           for (const {resolve} of this.renewSync) {
             resolve();
@@ -91,7 +91,7 @@ export interface BackblazeB2State {
   readonly bucketId: string;
 }
 
-const getUploadPartUrl = async (apiUrl: string, authToken: string, uploadId: string): Promise<string> => {
+const getUploadPartUrl = async (apiUrl: string, authToken: string, uploadId: string): Promise<{ url: string; token: string; }> => {
   const res = await http({
     method: `POST`,
     url: `${apiUrl}/b2api/v1/b2_get_upload_part_url`,
@@ -104,7 +104,10 @@ const getUploadPartUrl = async (apiUrl: string, authToken: string, uploadId: str
       fileId: uploadId,
     },
   });
-  return res.uploadUrl;
+  return {
+    url: res.uploadUrl,
+    token: res.authorizationToken,
+  };
 };
 
 export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
@@ -166,8 +169,11 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
 
   async uploadPart (s, uploadId, {path, number, start, end}): Promise<Buffer> {
     let uploadUrl: string;
+    let authorizationToken: string;
     try {
-      uploadUrl = await getUploadPartUrl(s.api.url, s.api.authToken, uploadId);
+      const res = await getUploadPartUrl(s.api.url, s.api.authToken, uploadId);
+      uploadUrl = res.url;
+      authorizationToken = res.token;
     } catch (err) {
       if (err instanceof HTTPBadStatusError && err.statusCode === 401) {
         // Failed to get upload URL due to authorisation, reauthorise.
@@ -183,7 +189,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
       url: uploadUrl,
       headers: {
         Accept: `application/json`,
-        Authorization: s.api.authToken,
+        Authorization: authorizationToken,
         "X-Bz-Part-Number": number + 1,
         "Content-Length": end - start + 1,
         "X-Bz-Content-Sha1": hash.toString("hex"),

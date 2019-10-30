@@ -86,7 +86,6 @@ Example:
 ltsu \
   --file /home/user/Archive.img \
   --work /tmp/archive-backup-2019-03-20 \
-  --concurrency 3 \
   --service aws \
   --region us-east-1 \
   --access AKIAIOSFODNN7EXAMPLE \
@@ -100,10 +99,8 @@ ltsu \
 ltsu \
   --file /path/to/file \
   --work /path/to/working/dir \
-  --concurrency 3 \
   --service b2 \
   --account B2_ACCOUNT_ID \
   --key B2_APPLICATION_KEY \
-  --bucket B2_BUCKET_ID \
-  --vault MyVaultName
+  --bucket B2_BUCKET_ID
 ```
