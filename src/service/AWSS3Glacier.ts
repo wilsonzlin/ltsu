@@ -1,37 +1,86 @@
-import AWS from "aws-sdk";
 import crypto from "crypto";
 import {createReadStream, promises as fs, ReadStream} from "fs";
+import {Response} from "request";
 import {CLIArgs} from "../CLI";
 import {assertExists, assertTrue} from "../util/assert";
+import {getLastHeaderValue, http, HTTPRequestHeaders, HTTPRequestMethod} from "../util/http";
 import {nextPowerOfTwo} from "../util/nextPowerOfTwo";
-import {PartDetails, Service} from "./Service";
+import {createAuthHeader, getISOTime} from "../util/v4";
+import {Service} from "./Service";
 
-type ReadStreamWithPartDetails = ReadStream & { __ltsuPartDetails: PartDetails };
-type AWSGlacierRequestBody = ReadStreamWithPartDetails | Buffer | string | undefined;
+interface GlacierAPIRequest {
+  method: HTTPRequestMethod;
+  subpath: string;
+  headers: HTTPRequestHeaders;
+  body?: {
+    data: ReadStream | string;
+    SHA256: string;
+  };
+}
 
-const isReadStreamWithPartDetails = (body: AWSGlacierRequestBody): body is ReadStreamWithPartDetails => {
-  return body instanceof ReadStream && !!body.__ltsuPartDetails;
-};
+const createBoundRequestFunction = (
+  {
+    region,
+    accessId,
+    secretKey,
+    vaultName,
+  }: {
+    region: string;
+    accessId: string;
+    secretKey: string;
+    vaultName: string;
+  }
+) => (
+  {
+    method,
+    subpath,
+    headers,
+    body,
+  }: GlacierAPIRequest
+): Promise<Response> => {
+  const host = `glacier.${region}.amazonaws.com`;
+  const path = `/-/vaults/${vaultName}${subpath}`;
 
-const joinReadStreamWithPartDetails = (stream: ReadStream, part: PartDetails): ReadStreamWithPartDetails => {
-  return Object.assign(stream, {__ltsuPartDetails: part});
+  const isoDateTime = getISOTime();
+
+  headers["x-amz-date"] = isoDateTime;
+  headers["x-amz-glacier-version"] = `2012-06-01`;
+  if (body) {
+    headers["x-amz-content-sha256"] = body.SHA256;
+  }
+  headers["Authorization"] = createAuthHeader({
+    isoDateTime,
+    method,
+    host,
+    path,
+    headers,
+    contentSHA256: body ? body.SHA256 : "",
+    service: "glacier",
+    region,
+    accessKeyId: accessId,
+    secretAccessKey: secretKey,
+  });
+
+  return http({
+    url: `https://${host}${path}`,
+    method,
+    headers,
+    body: body && body.data,
+  });
 };
 
 export interface AWSS3GlacierOptions {
-  region?: string;
-  accessId?: string;
-  secretKey?: string;
+  region: string;
+  accessId: string;
+  secretKey: string;
   vaultName: string;
 }
 
-const optionalMap = <I, O> (val: I | undefined, mapper: (v: I) => O): O | undefined => {
-  return val == undefined ? undefined : mapper(val);
-};
-
 export const parseAWSS3GlacierOptions = (args: CLIArgs): AWSS3GlacierOptions => {
-  const region = optionalMap(args.region, v => v.toString());
-  const accessId = optionalMap(args.access, v => v.toString());
-  const secretKey = optionalMap(args.secret, v => v.toString());
+  // Call .toString to ensure value is not null/undefined.
+  const region = args.region.toString();
+  const accessId = args.access.toString();
+  const secretKey = args.secret.toString();
   const vaultName = args.vault.toString();
 
   return {
@@ -40,7 +89,7 @@ export const parseAWSS3GlacierOptions = (args: CLIArgs): AWSS3GlacierOptions => 
 };
 
 export interface AWSS3GlacierState {
-  readonly service: AWS.Glacier;
+  readonly requester: (request: GlacierAPIRequest) => Promise<Response>;
   readonly vaultName: string;
 }
 
@@ -126,54 +175,6 @@ const calculateTreeAndLinearHashesOfPart = async ({path, start, end}: { path: st
   };
 };
 
-// Patch internal method addTreeHashHeaders on AWS.Glacier class to support
-// a body of type `fs.ReadStream & {psf: PartStreamFactory}`. By default, the
-// SDK tries to convert the ReadStream into a Buffer, which fails as Buffer.from
-// doesn't support an argument of type fs.ReadStream. In addition, we don't want
-// to read the entire part (which could be up to 4 GiB) into memory, so we pass
-// a ReadStream as the body value (which the SDK does support uploading from) with
-// a `psf` property that, when called, creates a new ReadStream of the same part,
-// as the initial ReadStream will be consumed when building the hashes.
-// @ts-ignore
-AWS.Glacier.prototype.addTreeHashHeaders = async (
-  request: {
-    params: { body: AWSGlacierRequestBody };
-    httpRequest: { headers: { [name: string]: string } };
-    service: AWS.Glacier,
-  },
-  callNextListener: (err?: any) => void,
-) => {
-  const body = request.params.body;
-  if (isReadStreamWithPartDetails(body)) {
-    const {path, start, end} = body.__ltsuPartDetails;
-    const {linear, tree} = await calculateTreeAndLinearHashesOfPart({path, start, end});
-    // The property "X-Amz-Content-Sha256" needs to be exactly in that letter casing,
-    // otherwise the SDK will think it doesn't exist and try to hash the ReadStream (which fails).
-    request.httpRequest.headers["X-Amz-Content-Sha256"] = linear.toString("hex");
-    // TODO Replace with assertion
-    if (request.httpRequest.headers["x-amz-sha256-tree-hash"]) {
-      throw new Error(`Tree hash header already exists on AWS Glacier request`);
-    }
-    request.httpRequest.headers["x-amz-sha256-tree-hash"] = tree.toString("hex");
-    // Length property is needed as by default the SDK gets the length of a fs.ReadStream by the size of the
-    // file at `stream._path`, which is the length of the entire file.
-    request.params.body = Object.assign(body, {length: end - start + 1});
-  } else if (body != undefined) {
-    // Default code.
-    const {linearHash, treeHash} = request.service.computeChecksums(body);
-    request.httpRequest.headers["X-Amz-Content-Sha256"] = linearHash;
-    if (!request.httpRequest.headers["x-amz-sha256-tree-hash"]) {
-      request.httpRequest.headers["x-amz-sha256-tree-hash"] = treeHash;
-    }
-  }
-  callNextListener();
-};
-// The AWS SDK uses this to determine that the function is asynchronous and so will provide
-// a callback and wait for it to be called with any error before continuing.
-// This is necessary as our calculateTreeAndLinearHashesOfPart function is asynchronous.
-// @ts-ignore
-AWS.Glacier.prototype.addTreeHashHeaders._isAsync = true;
-
 export const AWSS3Glacier: Service<AWSS3GlacierOptions, AWSS3GlacierState> = {
   // See https://docs.aws.amazon.com/amazonglacier/latest/dev/uploading-archive-mpu.html for limits.
   minParts: 1,
@@ -183,23 +184,25 @@ export const AWSS3Glacier: Service<AWSS3GlacierOptions, AWSS3GlacierState> = {
 
   async fromOptions (options) {
     return {
-      service: new AWS.Glacier({
-        accessKeyId: options.accessId || undefined,
-        secretAccessKey: options.secretKey || undefined,
-        region: options.region || undefined,
+      requester: createBoundRequestFunction({
+        accessId: options.accessId,
+        secretKey: options.secretKey,
+        region: options.region,
+        vaultName: options.vaultName,
       }),
       vaultName: options.vaultName,
     };
   },
 
   async completeUpload (s, uploadId, fileSize, partHashes) {
-    await s.service.completeMultipartUpload({
-      accountId: "-",
-      archiveSize: `${fileSize}`,
-      checksum: buildFinalTreeHash(partHashes).toString("hex"),
-      uploadId: uploadId,
-      vaultName: s.vaultName,
-    }).promise();
+    await s.requester({
+      subpath: `/multipart-uploads/${uploadId}`,
+      method: "POST",
+      headers: {
+        "x-amz-sha256-tree-hash": buildFinalTreeHash(partHashes).toString("hex"),
+        "x-amz-archive-size": fileSize,
+      },
+    });
   },
 
   async idealPartSize (_, fileSize) {
@@ -207,26 +210,36 @@ export const AWSS3Glacier: Service<AWSS3GlacierOptions, AWSS3GlacierState> = {
   },
 
   async initiateNewUpload (s, fileName, partSize) {
-    const result = await s.service.initiateMultipartUpload({
-      accountId: "-",
-      vaultName: s.vaultName,
-      partSize: `${partSize}`,
-      archiveDescription: fileName,
-    }).promise();
-    return assertExists(result.uploadId);
+    const res = await s.requester({
+      headers: {
+        "x-amz-part-size": partSize.toString(),
+        "x-amz-archive-description": fileName,
+      },
+      method: "POST",
+      subpath: "/multipart-uploads",
+    });
+    return getLastHeaderValue(res, "x-amz-multipart-upload-id");
   },
 
   async uploadPart (s, uploadId, part) {
     const {path, start, end} = part;
-    const res = await s.service.uploadMultipartPart({
-      accountId: "-",
-      // See comment above the AWS.Glacier.prototype.addTreeHashHeaders patch above to see why.
-      body: joinReadStreamWithPartDetails(createReadStream(path, {start, end}), part),
-      range: `bytes ${start}-${end}/*`,
-      uploadId: uploadId,
-      vaultName: s.vaultName,
-    }).promise();
+    const {linear, tree} = await calculateTreeAndLinearHashesOfPart({path, start, end});
+    const res = await s.requester({
+      subpath: `/multipart-uploads/${uploadId}`,
+      method: "PUT",
+      headers: {
+        "Content-Length": end - start + 1,
+        "Content-Range": `bytes ${start}-${end}/*`,
+        "x-amz-sha256-tree-hash": tree.toString("hex"),
+      },
+      body: {
+        data: createReadStream(path, {start, end}),
+        SHA256: linear.toString("hex"),
+      },
+    });
 
-    return Buffer.from(assertExists(res.checksum), "hex");
+    const serverTreeHash = Buffer.from(getLastHeaderValue(res, "x-amz-sha256-tree-hash"), "hex");
+    assertTrue(tree.equals(serverTreeHash));
+    return tree;
   }
 };

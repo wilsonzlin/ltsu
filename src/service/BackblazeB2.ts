@@ -1,8 +1,33 @@
+import * as fs from "fs";
 import {createReadStream} from "fs";
 import {CLIArgs} from "../CLI";
-import {http, HTTPBadStatusError} from "../util/http";
+import {http, HTTPBadStatusError, HTTPRequestHeaders, HTTPRequestMethod} from "../util/http";
+import {isPlainObject} from "../util/isPlainObject";
 import {sha1File} from "../util/sha1File";
 import {Service} from "./Service";
+
+const b2Request = <R = any> (
+  {
+    method,
+    url,
+    headers,
+    body,
+  }: {
+    method: HTTPRequestMethod;
+    url: string;
+    headers: HTTPRequestHeaders;
+    body?: object | fs.ReadStream;
+  }
+): Promise<R> =>
+  http({
+    url,
+    method,
+    headers,
+    body: isPlainObject(body)
+      ? JSON.stringify(body)
+      : body,
+  }).then(res => JSON.parse(res.body));
+
 
 class AuthenticatedAPI {
   private readonly accountId: string;
@@ -43,7 +68,7 @@ class AuthenticatedAPI {
       }
 
       const basicAuth = Buffer.from(`${this.accountId}:${this.applicationKey}`).toString(`base64`);
-      http({
+      b2Request({
         method: `GET`,
         url: `https://api.backblazeb2.com/b2api/v1/b2_authorize_account`,
         headers: {
@@ -77,6 +102,7 @@ export interface BackblazeB2Options {
 }
 
 export const parseBackblazeB2Options = (args: CLIArgs): BackblazeB2Options => {
+  // Call .toString to ensure value is not null/undefined.
   const accountId = args.account.toString();
   const applicationKey = args.key.toString();
   const bucketId = args.bucket.toString();
@@ -92,7 +118,7 @@ export interface BackblazeB2State {
 }
 
 const getUploadPartUrl = async (apiUrl: string, authToken: string, uploadId: string): Promise<{ url: string; token: string; }> => {
-  const res = await http({
+  const res = await b2Request({
     method: `POST`,
     url: `${apiUrl}/b2api/v1/b2_get_upload_part_url`,
     headers: {
@@ -126,7 +152,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
   },
 
   async completeUpload (s: BackblazeB2State, uploadId: string, _: number, partHashes: Buffer[]): Promise<void> {
-    return http({
+    return b2Request({
       method: `POST`,
       url: `${s.api.url}/b2api/v1/b2_finish_large_file`,
       headers: {
@@ -150,7 +176,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
   },
 
   async initiateNewUpload (s: BackblazeB2State, fileName: string, _: number): Promise<string> {
-    const res = await http({
+    const res = await b2Request({
       method: `POST`,
       url: `${s.api.url}/b2api/v1/b2_start_large_file`,
       headers: {
@@ -184,7 +210,7 @@ export const BackblazeB2: Service<BackblazeB2Options, BackblazeB2State> = {
     }
 
     const hash = await sha1File(createReadStream(path, {start, end}));
-    await http({
+    await b2Request({
       method: `POST`,
       url: uploadUrl,
       headers: {
