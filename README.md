@@ -84,8 +84,6 @@ If the file has changed since the last upload session, ltsu will refuse to run. 
 |`--secret`|Secret access key.|
 |`--vault`|Vault name.|
 
-If the access ID or secret key is not provided, [environment variables or the shared credentials file](https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/setting-credentials-node.html) will be used. It's possible to choose which profile in the shared credentials file to use by setting environment variables; see the [documentation](https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/loading-node-credentials-shared.html) for more details.
-
 The account owning the vault must be the same as the account associated with the credentials. For more information on AWS credentials and S3 Glacier, see [here](https://docs.aws.amazon.com/amazonglacier/latest/dev/access-control-identity-based.html). 
 
 Example:
