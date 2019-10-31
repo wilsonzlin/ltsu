@@ -1,6 +1,6 @@
 {
   "name": "ltsu",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Resumable concurrent large file (≤40 TB) uploads to AWS S3 Glacier and Backblaze B2 with low memory usage",
   "bin": "dist/main.js",
   "files": [
