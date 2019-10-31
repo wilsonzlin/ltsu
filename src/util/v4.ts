@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import {HTTPRequestHeaders, HTTPRequestMethod, HTTPRequestQueryParameters} from "../util/http";
 
-const leftPad = (str: string | number, width: number, char: string = "0"): string => {
+export const leftPad = (str: string | number, width: number, char: string = "0"): string => {
   str = `${str}`;
   return char.repeat(Math.max(0, width - str.length)) + str;
 };
@@ -20,7 +20,7 @@ export const getISOTime = (): string => {
   ].join("");
 };
 
-const percentEncodeBytes = (str: string | number, encodeSlashes: boolean = true): string => {
+export const percentEncodeBytes = (str: string | number, encodeSlashes: boolean = true): string => {
   if (typeof str === "number") {
     return `${str}`;
   }
@@ -46,9 +46,11 @@ const percentEncodeBytes = (str: string | number, encodeSlashes: boolean = true)
   return encoded.join("");
 };
 
-const hashSHA256 = (data: Buffer | string): Buffer => crypto.createHash("sha256").update(data).digest();
+export const hashSHA256 = (data: Buffer | string): Buffer => crypto.createHash("sha256").update(data).digest();
 
-const hmac = (
+export const EMPTY_BODY_SHA256 = hashSHA256("").toString("hex");
+
+export const hmac = (
   {
     secret,
     data,
@@ -64,7 +66,7 @@ interface CanonicalRequest {
   headers: string;
 }
 
-const generateCanonicalRequest = (
+export const generateCanonicalRequest = (
   {
     method,
     host,
@@ -133,7 +135,6 @@ const generateCanonicalRequest = (
 
   canonicalRequest.push("");
   canonicalRequest.push(signedHeaders);
-
   canonicalRequest.push(contentSHA256);
 
   return {
@@ -142,7 +143,7 @@ const generateCanonicalRequest = (
   };
 };
 
-function deriveSigningKey (
+export const deriveSigningKey = (
   {
     secretAccessKey,
     region,
@@ -154,16 +155,15 @@ function deriveSigningKey (
     service: string;
     isoDate: string;
   }
-): Buffer {
+): Buffer => {
   const dateKey = hmac({secret: `AWS4${secretAccessKey}`, data: isoDate});
   const dateRegionKey = hmac({secret: dateKey, data: region});
   const dateRegionServiceKey = hmac({secret: dateRegionKey, data: service});
   return hmac({secret: dateRegionServiceKey, data: "aws4_request"});
-}
+};
 
-function sign (derivedKey: Buffer | string, stringToSign: Buffer | string): string {
-  return hmac({data: stringToSign, secret: derivedKey}).toString("hex");
-}
+export const sign = ({ derivedKey, stringToSign }: { derivedKey: Buffer | string; stringToSign: Buffer | string; }): string =>
+  hmac({data: stringToSign, secret: derivedKey}).toString("hex");
 
 export interface AWSSignature {
   isoDateTime: string;
@@ -219,7 +219,7 @@ export const createAuthHeader = (
     isoDate: isoDate,
   });
 
-  const signature = sign(derivedKey, stringToSign);
+  const signature = sign({ derivedKey, stringToSign });
 
   return `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${isoDate}/${region}/${service}/aws4_request, SignedHeaders=${signedHeadersJoined}, Signature=${signature}`;
 };

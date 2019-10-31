@@ -5,7 +5,7 @@ import {CLIArgs} from "../CLI";
 import {assertExists, assertTrue} from "../util/assert";
 import {getLastHeaderValue, http, HTTPRequestHeaders, HTTPRequestMethod} from "../util/http";
 import {nextPowerOfTwo} from "../util/nextPowerOfTwo";
-import {createAuthHeader, getISOTime} from "../util/v4";
+import {createAuthHeader, getISOTime, EMPTY_BODY_SHA256} from "../util/v4";
 import {Service} from "./Service";
 
 interface GlacierAPIRequest {
@@ -54,7 +54,7 @@ const createBoundRequestFunction = (
     host,
     path,
     headers,
-    contentSHA256: body ? body.SHA256 : "",
+    contentSHA256: body ? body.SHA256 : EMPTY_BODY_SHA256,
     service: "glacier",
     region,
     accessKeyId: accessId,
